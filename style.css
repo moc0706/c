@@ -1,6 +1,6 @@
 body {
     font-family: 'Helvetica Neue', Arial, sans-serif;
-    background-color: #2e7d32;
+    background-color: #1b5e20;
     color: white;
     margin: 0;
     padding: 20px;
@@ -14,24 +14,35 @@ body {
     text-align: center;
 }
 
+.desc { font-size: 14px; color: #a5d6a7; margin-bottom: 20px; }
+
 .panel {
-    background-color: rgba(0, 0, 0, 0.6);
+    background-color: rgba(0, 0, 0, 0.7);
     padding: 20px;
     border-radius: 10px;
     margin-bottom: 20px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
 }
 
-.hidden {
-    display: none !important;
-}
+.hidden { display: none !important; }
 
-input, button {
+input, button, textarea {
     padding: 10px 15px;
     font-size: 16px;
     border-radius: 5px;
     border: none;
     margin: 5px;
+}
+
+input[type="number"] { width: 60px; text-align: center; }
+
+textarea {
+    width: 90%;
+    height: 60px;
+    background: #e0e0e0;
+    color: #333;
+    font-family: monospace;
+    font-size: 12px;
 }
 
 button {
@@ -40,25 +51,23 @@ button {
     cursor: pointer;
     font-weight: bold;
 }
-
-button:hover {
-    background-color: #e68a00;
-}
+button:hover { background-color: #e68a00; }
 
 .hand {
     display: flex;
     justify-content: center;
-    gap: 10px;
-    min-height: 110px;
+    gap: 8px;
+    min-height: 90px;
     padding: 10px;
     background-color: rgba(255,255,255,0.1);
     border-radius: 5px;
     flex-wrap: wrap;
+    margin: 10px 0;
 }
 
 .card {
-    width: 60px;
-    height: 90px;
+    width: 50px;
+    height: 75px;
     background-color: white;
     color: black;
     border-radius: 5px;
@@ -66,31 +75,29 @@ button:hover {
     justify-content: center;
     align-items: center;
     font-weight: bold;
-    font-size: 18px;
-    box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+    font-size: 16px;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.4);
     user-select: none;
 }
 
 .card.back {
-    background-color: #d32f2f;
+    background-color: #b71c1c;
     color: white;
-    border: 2px solid white;
+    border: 1px solid white;
     cursor: pointer;
 }
-
 .card.back:hover {
-    transform: translateY(-10px);
-    background-color: #b71c1c;
+    transform: translateY(-5px);
+    background-color: #d32f2f;
 }
 
-#turn-display {
-    font-size: 20px;
-    margin-bottom: 15px;
-    color: #ffeb3b;
-}
-
-#system-message {
+#qrcode-container {
+    display: flex;
+    justify-content: center;
     margin-top: 15px;
-    font-style: italic;
-    color: #ccc;
+    background: white;
+    padding: 10px;
+    width: 128px;
+    margin: 15px auto;
+    border-radius: 5px;
 }
