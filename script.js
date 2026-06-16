@@ -1,256 +1,195 @@
-let peer = null;
-let conn = null;
-let myId = null;
-let isHost = false;
+// ゲームデータ構造
+let gameState = {
+    totalPlayers: 3,
+    currentPlayerIndex: 0, // 現在操作中のプレイヤー（0から始まる）
+    hands: [],             // 各プレイヤーの手札配列
+    log: "ゲームが始まりました"
+};
 
-// ゲーム状態
-let myHand = [];
-let opponentCardCount = 0;
-let isMyTurn = false;
-
-// トランプの準備（簡易版：数字1〜5×2枚ずつ ＋ ジョーカー1枚 ＝ 計11枚）
-// ※テストしやすくするため枚数を減らしています。増やす場合は数値を調整してください。
-const CARD_TYPES = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 'Joker'];
-
-// DOM要素
-const btnMakeRoom = document.getElementById('btn-make-room');
-const btnJoinRoom = document.getElementById('btn-join-room');
-const peerIdInput = document.getElementById('peer-id-input');
-const myIdDisplay = document.getElementById('my-id');
-const connectionStatus = document.getElementById('connection-status');
-const connectionPanel = document.getElementById('connection-panel');
-const gamePanel = document.getElementById('game-panel');
-const btnStart = document.getElementById('btn-start');
-const turnDisplay = document.getElementById('turn-display');
-const myHandDiv = document.getElementById('my-hand');
-const opponentHandDiv = document.getElementById('opponent-hand');
-const opponentCountSpan = document.getElementById('opponent-count');
-const systemMessage = document.getElementById('system-message');
-
-// --- 1. ネットワーク接続処理 ---
-
-// ホストとして部屋を作成
-btnMakeRoom.addEventListener('click', () => {
-    isHost = true;
-    initPeer();
+// URLから引き継ぎコードを自動読み込みするためのチェック
+window.addEventListener('load', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('state');
+    if (code) {
+        document.getElementById('input-code').value = code;
+        loadGame(code);
+    }
 });
 
-// ゲストとして参加
-btnJoinRoom.addEventListener('click', () => {
-    isHost = false;
-    const targetId = peerIdInput.value.trim();
-    if (!targetId) return alert('部屋IDを入力してください');
-    
-    initPeer(() => {
-        conn = peer.connect(targetId);
-        setupConnection();
-    });
-});
-
-function initPeer(callback) {
-    peer = new Peer();
-    
-    peer.on('open', (id) => {
-        myId = id;
-        myIdDisplay.textContent = id;
-        connectionStatus.textContent = isHost ? '相手の接続を待っています...' : '接続中...';
-        if(callback) callback();
-    });
-
-    // ホスト側がゲストからの接続を受け付ける処理
-    peer.on('connection', (connection) => {
-        if (isHost) {
-            conn = connection;
-            setupConnection();
-        }
-    });
-}
-
-function setupConnection() {
-    conn.on('open', () => {
-        connectionStatus.textContent = '接続完了！ゲームに移動します。';
-        connectionPanel.classList.add('hidden');
-        gamePanel.classList.remove('hidden');
-        
-        if (isHost) {
-            btnStart.classList.remove('hidden');
-            turnDisplay.textContent = 'あなたがホストです。ゲームを開始してください。';
-        } else {
-            turnDisplay.textContent = 'ホストがゲームを開始するのを待っています...';
-        }
-    });
-
-    // 相手からデータを受信したときの処理
-    conn.on('data', (data) => {
-        handleReceiveData(data);
-    });
-}
-
-// --- 2. ゲームロジック処理 ---
-
-btnStart.addEventListener('click', () => {
-    if (!isHost) return;
-    btnStart.classList.add('hidden');
-    startGame();
-});
-
-function startGame() {
-    // 山札をシャッフル
-    let deck = [...CARD_TYPES].sort(() => Math.random() - 0.5);
-    
-    // 2人に配る
-    let hand1 = [];
-    let hand2 = [];
-    deck.forEach((card, index) => {
-        if (index % 2 === 0) hand1.push(card);
-        else hand2.push(card);
-    });
-
-    // ホスト自身の手札を処理
-    myHand = removePairs(hand1);
-    isMyTurn = true; // ホストが先攻
-
-    // 相手（ゲスト）に手札を送信
-    let filteredHand2 = removePairs(hand2);
-    opponentCardCount = filteredHand2.length;
-
-    sendData({
-        type: 'START',
-        yourHand: filteredHand2,
-        opponentCardCount: myHand.length,
-        isYourTurn: false
-    });
-
-    updateUI();
-}
-
-// ペア（同じ数字）を捨てる関数
+// ペアを捨てる関数
 function removePairs(hand) {
     let counts = {};
-    hand.forEach(card => {
-        if(card === 'Joker') {
-            counts[card] = 1;
-        } else {
-            counts[card] = (counts[card] || 0) + 1;
-        }
-    });
-
+    hand.forEach(c => counts[c] = (counts[c] || 0) + 1);
     let newHand = [];
-    for (let card in counts) {
-        if (card === 'Joker') {
-            newHand.push('Joker');
-        } else if (counts[card] % 2 !== 0) {
-            newHand.push(Number(card));
-        }
+    for (let c in counts) {
+        if (c === 'Joker') newHand.push('Joker');
+        else if (counts[c] % 2 !== 0) newHand.push(Number(c));
     }
     return newHand;
 }
 
-// データ送信の共通関数
-function sendData(obj) {
-    if (conn && conn.open) {
-        conn.send(obj);
-    }
-}
+// 1. 新しくゲームを開始する
+document.getElementById('btn-start').addEventListener('click', () => {
+    const count = parseInt(document.getElementById('player-count').value);
+    if (count < 2) return alert("2人以上でプレイしてください");
 
-// データ受信時の振り分け
-function handleReceiveData(data) {
-    if (data.type === 'START') {
-        myHand = data.yourHand;
-        opponentCardCount = data.opponentCardCount;
-        isMyTurn = data.isYourTurn;
-        systemMessage.textContent = "ゲームが開始されました！";
-    } 
-    else if (data.type === 'UPDATE_COUNT') {
-        opponentCardCount = data.count;
-        isMyTurn = data.nextTurn;
-    }
-    else if (data.type === 'DRAW') {
-        // 相手に引かれたカードのインデックス
-        const drawnCard = myHand.splice(data.index, 1)[0];
-        systemMessage.textContent = `相手にカードを引かれました。`;
-        
-        // 引かれた後の自分の手札をチェック（揃うことはないが一応）
-        myHand = removePairs(myHand);
-        
-        // ターンを自分交代にする
-        isMyTurn = true;
-        
-        // 相手に自分の最新の枚数を伝える
-        sendData({
-            type: 'UPDATE_COUNT',
-            count: myHand.length,
-            nextTurn: false // 相手のターンは終わり
-        });
+    gameState.totalPlayers = count;
+    gameState.currentPlayerIndex = 0;
 
-        checkWinLose();
-    }
-    updateUI();
-}
-
-// 相手のカードを引く処理
-function drawCard(index) {
-    if (!isMyTurn) return;
+    // 枚数を人数に合わせて用意（数字1〜7×2 + ジョーカー）
+    let deck = [1,1,2,2,3,3,4,4,5,5,6,6,7,7,'Joker'].sort(() => Math.random() - 0.5);
     
-    systemMessage.textContent = `相手のカードを引きに行きます...`;
-    
-    // 相手に「何番目のカードを引いたか」を伝える
-    sendData({
-        type: 'DRAW',
-        index: index
+    // 手札の分配
+    gameState.hands = Array.from({length: count}, () => []);
+    deck.forEach((card, idx) => {
+        gameState.hands[idx % count].push(card);
     });
 
-    // 自分のUIを一時的にロックして、相手からのUPDATE_COUNT（同期）を待つ
-    isMyTurn = false; 
-    updateUI();
-}
+    // 最初の一斉ペア捨て
+    for (let i = 0; i < count; i++) {
+        gameState.hands[i] = removePairs(gameState.hands[i]);
+    }
 
-// 勝敗判定
-function checkWinLose() {
-    if (myHand.length === 0 && opponentCardCount === 0) {
-        turnDisplay.textContent = "引き分け！";
-        isMyTurn = false;
-    } else if (myHand.length === 0) {
-        turnDisplay.textContent = "あなたの勝ち！🎉";
-        isMyTurn = false;
-    } else if (opponentCardCount === 0) {
-        turnDisplay.textContent = "あなたの負け... 不名誉なババ！";
-        isMyTurn = false;
+    showGamePanel();
+});
+
+// 2. データを読み込んで再開
+document.getElementById('btn-load').addEventListener('click', () => {
+    const code = document.getElementById('input-code').value.trim();
+    loadGame(code);
+});
+
+function loadGame(code) {
+    try {
+        // 圧縮された文字列をデコードして復元
+        const decoded = atob(code);
+        gameState = JSON.parse(decoded);
+        showGamePanel();
+    } catch (e) {
+        alert("引き継ぎコードが正しくありません。正しくコピーされているか確認してください。");
     }
 }
 
-// 画面の更新
-function updateUI() {
-    // 枚数表示
-    opponentCountSpan.textContent = opponentCardCount;
+// ゲーム画面の表示と構築
+function showGamePanel() {
+    document.getElementById('setup-panel').classList.add('hidden');
+    document.getElementById('pass-panel').classList.add('hidden');
+    document.getElementById('game-panel').classList.remove('hidden');
 
-    // ターン表示
-    if (myHand.length === 0 || opponentCardCount === 0) {
-        checkWinLose();
-    } else {
-        turnDisplay.textContent = isMyTurn ? "あなたのターンです！相手のカードを1枚クリックして引いてください。" : "相手のターンです。待機中...";
-    }
+    const myIdx = gameState.currentPlayerIndex;
+    document.getElementById('my-index').textContent = myIdx + 1;
+    document.getElementById('turn-title').textContent = `プレイヤー ${myIdx + 1} のターン`;
 
-    // 自分の手札を描画（数字が見える）
+    // 自分の手札を描画
+    const myHandDiv = document.getElementById('my-hand');
     myHandDiv.innerHTML = '';
-    myHand.forEach(card => {
-        const cardEl = document.createElement('div');
-        cardEl.className = 'card';
-        cardEl.textContent = card === 'Joker' ? '🃏' : card;
-        myHandDiv.appendChild(cardEl);
-    });
+    const myHand = gameState.hands[myIdx] || [];
 
-    // 相手の手札を描画（裏面・クリック可能）
-    opponentHandDiv.innerHTML = '';
-    for (let i = 0; i < opponentCardCount; i++) {
+    if (myHand.length === 0) {
+        myHandDiv.innerHTML = "<p>🎉 あなたの手札は0枚です！アガリ！</p>";
+    } else {
+        myHand.forEach(card => {
+            const cardEl = document.createElement('div');
+            cardEl.className = 'card';
+            cardEl.textContent = card === 'Joker' ? '🃏' : card;
+            myHandDiv.appendChild(cardEl);
+        });
+    }
+
+    // 引く相手を選ぶボタンを生成（通常は前のプレイヤー、または手札がある人）
+    const targetButtonsDiv = document.getElementById('target-buttons');
+    targetButtonsDiv.innerHTML = '';
+    
+    for (let i = 0; i < gameState.totalPlayers; i++) {
+        if (i === myIdx) continue; // 自分からは引けない
+        
+        const count = gameState.hands[i].length;
+        if (count === 0) continue; // アガってる人からは引けない
+
+        const btn = document.createElement('button');
+        btn.textContent = `プレイヤー ${i + 1} から引く (${count}枚保有)`;
+        btn.addEventListener('click', () => showOpponentHand(i));
+        targetButtonsDiv.appendChild(btn);
+    }
+
+    // もし誰も引く相手がいない（ゲーム終了など）
+    if (targetButtonsDiv.children.length === 0) {
+        document.getElementById('system-message').textContent = "ゲーム終了、または引ける相手がいません！";
+        generatePassCode(true); // 最終結果を回す用
+    }
+}
+
+// 相手の手札を（裏面で）表示して選ばせる
+function showOpponentHand(targetIdx) {
+    const oppHandDiv = document.getElementById('opponent-hand');
+    oppHandDiv.innerHTML = '';
+    oppHandDiv.classList.remove('hidden');
+
+    const targetHand = gameState.hands[targetIdx];
+    targetHand.forEach((card, cardIdx) => {
         const cardEl = document.createElement('div');
         cardEl.className = 'card back';
         cardEl.textContent = '？';
-        
-        // 自分のターンならクリックして引けるようにする
-        if (isMyTurn) {
-            cardEl.addEventListener('click', () => drawCard(i));
-        }
-        opponentHandDiv.appendChild(cardEl);
-    }
+        cardEl.addEventListener('click', () => drawCard(targetIdx, cardIdx));
+        oppHandDiv.appendChild(cardEl);
+    });
+}
+
+// カードを引く処理
+function drawCard(targetIdx, cardIdx) {
+    const myIdx = gameState.currentPlayerIndex;
+    
+    // カードを移動
+    const card = gameState.hands[targetIdx].splice(cardIdx, 1)[0];
+    gameState.hands[myIdx].push(card);
+
+    // ペアチェック
+    gameState.hands[myIdx] = removePairs(gameState.hands[myIdx]);
+
+    // 次のプレイヤーに手番を回す（手札が残っている次の人を計算）
+    let nextIdx = myIdx;
+    do {
+        nextIdx = (nextIdx + 1) % gameState.totalPlayers;
+    } while (gameState.hands[nextIdx].length === 0 && nextIdx !== myIdx);
+
+    gameState.currentPlayerIndex = nextIdx;
+
+    // 次の人へのコード生成画面へ
+    generatePassCode(false);
+}
+
+// 引き継ぎコード・QRコードの生成
+function generatePassCode(isEnd) {
+    document.getElementById('game-panel').classList.add('hidden');
+    document.getElementById('pass-panel').classList.remove('hidden');
+
+    // データを暗号化文字列（Base64）に変換
+    const jsonStr = JSON.stringify(gameState);
+    const code = btoa(jsonStr);
+
+    const outputTextarea = document.getElementById('output-code');
+    outputTextarea.value = code;
+
+    // 今いるページのURL ＋ データをドッキングした「一発起動URL」を作る
+    const baseUrl = window.location.href.split('?')[0];
+    const directUrl = `${baseUrl}?state=${code}`;
+
+    // QRコードの生成（直接URLが開くようにする）
+    document.getElementById('qrcode').innerHTML = '';
+    new QRCode(document.getElementById("qrcode"), {
+        text: directUrl,
+        width: 128,
+        height: 128
+    });
+
+    // コピーボタンの設定
+    document.getElementById('btn-copy').onclick = () => {
+        navigator.clipboard.writeText(directUrl).then(() => {
+            alert("次の人が一発で開ける「ゲームURL」をクリップボードにコピーしました！LINEなどで送ってあげてください。");
+        }).catch(() => {
+            // クリップボードが使えない環境用
+            outputTextarea.select();
+            alert("枠内のコードをすべてコピーして次の人に送ってください。");
+        });
+    };
 }
