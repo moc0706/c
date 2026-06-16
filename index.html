@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>オンライン対戦ババ抜き</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+</head>
+<body>
+    <div id="game-container">
+        <h1>オンライン対戦ババ抜き</h1>
+        
+        <div id="connection-panel" class="panel">
+            <h2>1. 接続設定</h2>
+            <div id="host-section">
+                <button id="btn-make-room">部屋を作る（ホスト）</button>
+                <p>あなたの部屋ID: <strong id="my-id">---</strong></p>
+                <p class="hint">このIDを友達に教えてください。</p>
+            </div>
+            <hr>
+            <div id="guest-section">
+                <input type="text" id="peer-id-input" placeholder="友達の部屋IDを入力">
+                <button id="btn-join-room">部屋に入る（ゲスト）</button>
+            </div>
+            <p id="connection-status">状態: 接続していません</p>
+        </div>
+
+        <div id="game-panel" class="panel hidden">
+            <h2>2. ゲーム画面</h2>
+            <div id="turn-display">対戦相手の準備を待っています...</div>
+            <button id="btn-start" class="hidden">ゲームを開始する</button>
+
+            <div class="field">
+                <div class="hand-container">
+                    <h3>相手の手札 (<span id="opponent-count">0</span>枚)</h3>
+                    <div id="opponent-hand" class="hand"></div>
+                </div>
+
+                <div class="hand-container">
+                    <h3>あなたの手札</h3>
+                    <div id="my-hand" class="hand"></div>
+                </div>
+            </div>
+            
+            <div id="system-message"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
